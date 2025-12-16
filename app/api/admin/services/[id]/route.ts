@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { prisma } from '@/lib/prisma'
 
 export async function DELETE(
@@ -8,9 +7,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    // Check Supabase auth
+    const supabase = createSupabaseServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -18,6 +19,7 @@ export async function DELETE(
     }
 
     // In a real app, check if user is admin
+    // For now, allow any authenticated user to delete (not recommended for production)
 
     await prisma.service.delete({
       where: { id: params.id },

@@ -1,27 +1,27 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const supabase = createSupabaseServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.email },
       include: {
         school: true,
       },
     })
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -29,13 +29,13 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-      major: user.major,
-      schoolId: user.schoolId,
-      school: user.school,
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      image: dbUser.image,
+      major: dbUser.major,
+      schoolId: dbUser.schoolId,
+      school: dbUser.school,
     })
   } catch (error) {
     console.error('Error fetching profile:', error)
@@ -48,9 +48,10 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    const supabase = createSupabaseServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!session?.user?.email) {
+    if (!user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -111,14 +112,14 @@ export async function PATCH(request: Request) {
     if (name !== undefined && name !== '') updateData.name = name
     if (image !== undefined && image !== '') updateData.image = image
 
-    // Handle Google OAuth user creation
+    // Handle user updates
     const existingUser = await prisma.user.findUnique({
-      where: { email: session.user.email! },
+      where: { email: user.email! },
     })
 
-    let user
+    let updatedUser
     if (!existingUser) {
-      // Create user if doesn't exist (from Google OAuth)
+      // Create user if doesn't exist (from Supabase auth)
       if (!schoolId) {
         // Get default school
         const defaultSchool = await prisma.school.findFirst()
@@ -131,11 +132,11 @@ export async function PATCH(request: Request) {
         updateData.schoolId = defaultSchool.id
       }
 
-      user = await prisma.user.create({
+      updatedUser = await prisma.user.create({
         data: {
-          email: session.user.email!,
-          name: session.user.name || name || 'User',
-          image: session.user.image || image,
+          email: user.email!,
+          name: user.user_metadata?.name || name || 'User',
+          image: user.user_metadata?.avatar_url || image,
           schoolId: updateData.schoolId,
           major: major || null,
         },
@@ -144,8 +145,8 @@ export async function PATCH(request: Request) {
         },
       })
     } else {
-      user = await prisma.user.update({
-        where: { email: session.user.email },
+      updatedUser = await prisma.user.update({
+        where: { email: user.email },
         data: updateData,
         include: {
           school: true,
