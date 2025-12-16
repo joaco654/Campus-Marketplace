@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'out',
   server: {
     url: process.env.NODE_ENV === 'production'
-      ? 'https://your-production-url.vercel.app' // Replace with your Vercel/Supabase URL
+      ? 'https://campus-marketplace-fa87029iw-joaco654s-projects.vercel.app'
       : 'http://10.0.2.2:3000', // Android emulator localhost
     cleartext: process.env.NODE_ENV !== 'production'
   },
