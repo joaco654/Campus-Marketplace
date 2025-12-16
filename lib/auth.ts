@@ -40,6 +40,12 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          // Skip database queries during build time
+          if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('placeholder')) {
+            console.log('Database not configured, skipping auth during build')
+            return null
+          }
+
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },
           })
@@ -78,6 +84,12 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
         try {
+          // Skip database queries during build time
+          if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('placeholder')) {
+            console.log('Database not configured, skipping Google auth check during build')
+            return true
+          }
+
           const existingUser = await prisma.user.findUnique({
             where: { email: user.email! },
           })
