@@ -1,0 +1,201 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  password    String?
+  image       String?
+  major       String?
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  services    Service[]
+  items       Item[]
+  events      Event[]
+  sentMessages Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  ratings     Rating[]
+  buyerBookings Booking[] @relation("BuyerBookings")
+  sellerBookings Booking[] @relation("SellerBookings")
+
+  @@index([schoolId])
+  @@index([email])
+}
+
+model School {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  logoUrl   String?
+  stateCode String?
+  stateName String?
+  createdAt DateTime @default(now())
+  
+  users     User[]
+  services  Service[]
+  items     Item[]
+  events    Event[]
+  
+  @@index([name])
+  @@index([stateCode])
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  title       String
+  description String
+  category    String
+  price       Float
+  pricingModel String  @default("fixed") // fixed, hourly, free
+  images      String?  // JSON array of image URLs
+  status      String   @default("available") // available, completed, sold
+  boosted     Boolean  @default(false)
+  boostedUntil DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    Message[]
+  ratings     Rating[]
+  bookings    Booking[]
+
+  @@index([userId])
+  @@index([schoolId])
+  @@index([category])
+  @@index([status])
+  @@index([boosted])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  senderId  String
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver  User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id])
+  content   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([serviceId])
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int      // 1-5
+  review    String?
+  createdAt DateTime @default(now())
+
+  @@unique([serviceId, userId])
+  @@index([serviceId])
+  @@index([userId])
+}
+
+model Item {
+  id            String      @id @default(cuid())
+  title         String
+  description   String
+  category      String      // books, calculators, lab-supplies, dorm-supplies, electronics, other
+  condition     String      @default("good") // new, like-new, good, fair, poor
+  price         Float
+  images        String?     // JSON array of image URLs
+  status        String      @default("available") // available, sold, reserved
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId      String
+  school        School      @relation(fields: [schoolId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([schoolId])
+  @@index([category])
+  @@index([status])
+}
+
+model Event {
+  id            String      @id @default(cuid())
+  title         String
+  description   String
+  category      String      // academic, social, sports, club, career, other
+  eventType     String      // university-official, student-organized, public
+  startDate     DateTime
+  endDate       DateTime?
+  location      String?
+  isAllDay      Boolean     @default(false)
+  isRecurring   Boolean     @default(false)
+  recurrenceRule String?   // RRULE format for recurring events
+  maxAttendees  Int?
+  currentAttendees Int      @default(0)
+  cost          Float?      // cost in USD, null for free
+  registrationUrl String?
+  contactInfo   String?
+  tags          String?     // JSON array of tags
+  images        String?     // JSON array of image URLs
+  status        String      @default("active") // active, cancelled, completed
+  visibility    String      @default("public") // public, school-only, private
+  userId        String?     // null for university events, user ID for student events
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  schoolId      String
+  school        School      @relation(fields: [schoolId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([schoolId])
+  @@index([startDate])
+  @@index([category])
+  @@index([status])
+  @@index([visibility])
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  serviceId     String
+  buyerId       String
+  sellerId      String
+  status        String   @default("PENDING") // PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, DISPUTED
+  title         String   // Service title for reference
+  description   String?  // Booking details
+  date          DateTime // Service date
+  startTime     String   // e.g., "14:00"
+  endTime       String?  // e.g., "16:00"
+  location      String?  // Meeting location
+  notes         String?  // Special instructions
+  price         Float    // Agreed price
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  completedAt   DateTime?
+
+  service       Service  @relation(fields: [serviceId], references: [id])
+  buyer         User     @relation("BuyerBookings", fields: [buyerId], references: [id])
+  seller        User     @relation("SellerBookings", fields: [sellerId], references: [id])
+
+  @@index([serviceId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([date])
+}
+
