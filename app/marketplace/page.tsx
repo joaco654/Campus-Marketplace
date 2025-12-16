@@ -61,13 +61,24 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      // Skip if Supabase not available (build time)
+      if (!supabase) {
+        console.log('Supabase not available, skipping auth check')
+        return
+      }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/auth/signin')
+        } else {
+          setUser(user)
+          fetchUserProfile()
+          fetchServices()
+        }
+      } catch (error) {
+        console.log('Auth check failed, redirecting to signin')
         router.push('/auth/signin')
-      } else {
-        setUser(user)
-        fetchUserProfile()
-        fetchServices()
       }
     }
     checkAuth()
@@ -260,7 +271,9 @@ export default function MarketplacePage() {
               </Link>
               <button
                 onClick={async () => {
-                  await supabase.auth.signOut()
+                  if (supabase) {
+                    await supabase.auth.signOut()
+                  }
                   router.push('/')
                 }}
                 className="p-2 text-gray-600 hover:text-red-600 transition-colors"

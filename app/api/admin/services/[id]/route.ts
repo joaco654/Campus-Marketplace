@@ -6,12 +6,20 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  // Skip during build time
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: 'Service unavailable during build' },
+      { status: 503 }
+    )
+  }
+
   try {
     // Check Supabase auth
     const supabase = createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

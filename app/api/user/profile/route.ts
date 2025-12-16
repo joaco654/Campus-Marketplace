@@ -3,11 +3,19 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
+  // Skip during build time
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: 'Service unavailable during build' },
+      { status: 503 }
+    )
+  }
+
   try {
     const supabase = createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!user?.email) {
+    if (authError || !user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -47,11 +55,19 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  // Skip during build time
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.json(
+      { error: 'Service unavailable during build' },
+      { status: 503 }
+    )
+  }
+
   try {
     const supabase = createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!user?.email) {
+    if (authError || !user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
