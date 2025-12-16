@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useNotifications } from '../components/notifications/NotificationContext'
 import { Search, Plus, Filter, User, LogOut, MessageSquare, Star, Calendar } from 'lucide-react'
-import { signOut } from 'next-auth/react'
+import { supabase } from '@/lib/supabase'
 
 interface Service {
   id: string
@@ -32,7 +31,6 @@ interface Service {
 }
 
 export default function MarketplacePage() {
-  const { data: session, status } = useSession()
   const router = useRouter()
   const { addNotification } = useNotifications()
   const [services, setServices] = useState<Service[]>([])
@@ -46,6 +44,7 @@ export default function MarketplacePage() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedImageTitle, setSelectedImageTitle] = useState<string>('')
+  const [user, setUser] = useState<any>(null)
 
   const categories = [
     'all',
@@ -61,13 +60,18 @@ export default function MarketplacePage() {
   ]
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin')
-    } else if (status === 'authenticated') {
-      fetchUserProfile()
-      fetchServices()
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth/signin')
+      } else {
+        setUser(user)
+        fetchUserProfile()
+        fetchServices()
+      }
     }
-  }, [status, router])
+    checkAuth()
+  }, [router])
 
   const fetchUserProfile = async () => {
     try {
@@ -255,7 +259,10 @@ export default function MarketplacePage() {
                 )}
               </Link>
               <button
-                onClick={() => signOut({ callbackUrl: '/' })}
+                onClick={async () => {
+                  await supabase.auth.signOut()
+                  router.push('/')
+                }}
                 className="p-2 text-gray-600 hover:text-red-600 transition-colors"
                 title="Sign out"
               >

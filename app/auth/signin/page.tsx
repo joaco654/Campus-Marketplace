@@ -1,10 +1,10 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 export default function SignInPage() {
   const router = useRouter()
@@ -21,7 +21,16 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     setLoading(true)
     try {
-      await signIn('google', { callbackUrl: '/onboarding' })
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/onboarding`
+        }
+      })
+      if (error) {
+        setError('Failed to sign in with Google')
+        setLoading(false)
+      }
     } catch (error) {
       setError('Failed to sign in with Google')
       setLoading(false)
@@ -35,77 +44,38 @@ export default function SignInPage() {
 
     try {
       if (isLogin) {
-        const result = await signIn('credentials', {
+        // Sign in with Supabase
+        const { error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
-          redirect: false,
         })
 
-        if (result?.error) {
+        if (error) {
           setError('Invalid email or password')
-        } else if (result?.ok) {
-          // Force a full page reload to ensure session is established
-          window.location.href = '/onboarding'
+        } else {
+          router.push('/onboarding')
         }
       } else {
-        // Register
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+        // Register with Supabase
+        const { error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              name: formData.name,
+            }
+          }
         })
 
-        const data = await response.json()
-
-        if (!response.ok) {
-          setError(data.error || 'Registration failed')
+        if (error) {
+          setError(error.message || 'Registration failed')
         } else {
-          // Small delay to ensure database transaction is fully committed
-          await new Promise(resolve => setTimeout(resolve, 300))
-          
-          // Auto sign in after registration with retry logic
-          console.log('Attempting auto sign-in after registration...')
-          let result = await signIn('credentials', {
-            email: formData.email,
-            password: formData.password,
-            redirect: false,
-          })
-
-          console.log('First sign-in attempt result:', result)
-
-          // If first attempt fails, try once more after a short delay
-          if (result?.error) {
-            console.log('First sign-in attempt failed, retrying...', result.error)
-            await new Promise(resolve => setTimeout(resolve, 1000)) // Increased delay
-            result = await signIn('credentials', {
-              email: formData.email,
-              password: formData.password,
-              redirect: false,
-            })
-            console.log('Second sign-in attempt result:', result)
-          }
-
-          if (result?.error) {
-            console.error('Auto sign-in error after retry:', result.error)
-            // Show user-friendly message and switch to login mode
-            setError('Account created successfully! Please sign in with your email and password below.')
-            setIsLogin(true)
-            // Clear password for security, keep email for convenience
-            setFormData({ ...formData, password: '' })
-          } else if (result?.ok) {
-            console.log('Auto sign-in successful, redirecting to onboarding')
-            // Success! Redirect to onboarding
-            window.location.href = '/onboarding'
-          } else {
-            // Unexpected result - try redirecting anyway as user was created
-            console.warn('Unexpected sign-in result:', result)
-            setError('Account created! Please try signing in.')
-            setIsLogin(true)
-            setFormData({ ...formData, password: '' })
-          }
+          setError('Account created successfully! Please check your email to confirm your account, then sign in.')
+          setIsLogin(true)
+          setFormData({ ...formData, password: '' })
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       setError('An error occurred. Please try again.')
     } finally {
       setLoading(false)
